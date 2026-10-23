@@ -7110,9 +7110,7 @@ fn comprehension_bindings_in_private_context(
         let bindings = collect(&normalized);
         // Reuse the existing own/first-child precedence, including its exclusion of
         // the first iterable. Only symbol identity changes before that traversal.
-        raw.into_keys()
-            .filter_map(|name| bindings.get(&normalize(&name)).map(|bound| (name, *bound)))
-            .collect()
+        remap_comprehension_bindings(raw, &bindings, &aliases)
     })
 }
 
@@ -7170,10 +7168,23 @@ pub(super) fn comprehension_name_bindings_with_mangler(
         }
         ruff_python_ast::visitor::transformer::Transformer::visit_expr(&transformer, &mut value);
         let bindings = comprehension_name_bindings(&generators, key.as_ref(), &value);
-        raw.into_keys()
-            .filter_map(|name| bindings.get(&normalize(&name)).map(|bound| (name, *bound)))
-            .collect()
+        remap_comprehension_bindings(raw, &bindings, &aliases)
     })
+}
+
+/// Map normalized binding identities back to their original source spellings.
+#[inline(never)]
+fn remap_comprehension_bindings(
+    raw: BTreeMap<String, bool>,
+    bindings: &BTreeMap<String, bool>,
+    aliases: &FxHashMap<String, String>,
+) -> BTreeMap<String, bool> {
+    raw.into_keys()
+        .filter_map(|name| {
+            let normalized = aliases.get(&name).map_or(name.as_str(), String::as_str);
+            bindings.get(normalized).map(|bound| (name, *bound))
+        })
+        .collect()
 }
 
 pub(super) fn collect_nested_comprehension_target_names(

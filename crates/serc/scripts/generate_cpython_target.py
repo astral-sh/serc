@@ -509,7 +509,6 @@ def render_preinterned_lookup(
     preinterned_strings: list[str],
     startup_strings: tuple[str, ...],
     compiler_strings: tuple[str, ...] = (),
-    table_name: str = "PREINTERNED_STRINGS",
     *,
     compiler_strings_on_linux: bool = True,
 ) -> list[str]:
@@ -551,7 +550,7 @@ def render_preinterned_lookup(
         "        [first] => u16::from(*first) << 8,",
         "        [first, second, ..] => u16::from_be_bytes([*first, *second]),",
         "    };",
-        "    let (start, end) = match prefix {",
+        "    let candidates: &[&str] = match prefix {",
     ]
     for key in sorted(ranges.keys() | supplemental.keys()):
         candidates = supplemental.get(key, [])
@@ -572,8 +571,12 @@ def render_preinterned_lookup(
             lines.append(f"        0x{key:04x} => return {condition},")
             continue
         start, end = ranges[key]
+        # Emit each bucket as a constant slice so equal buckets can be merged across targets.
+        bucket = ", ".join(
+            rust_string_literal(value) for value in preinterned_strings[start:end]
+        )
         if not candidates:
-            lines.append(f"        0x{key:04x} => ({start}, {end}),")
+            lines.append(f"        0x{key:04x} => &[{bucket}],")
             continue
         lines.extend(
             [
@@ -581,7 +584,7 @@ def render_preinterned_lookup(
                 f"            if {condition} {{",
                 "                return true;",
                 "            }",
-                f"            ({start}, {end})",
+                f"            &[{bucket}]",
                 "        }",
             ]
         )
@@ -589,7 +592,7 @@ def render_preinterned_lookup(
         [
             "        _ => return false,",
             "    };",
-            f"    {table_name}[start..end].binary_search(&value).is_ok()",
+            "    candidates.binary_search(&value).is_ok()",
             "}",
         ]
     )
@@ -1171,8 +1174,7 @@ def render(sources: dict[str, str]) -> str:
             f"pub(crate) const SMALL_INT_MAX: i64 = {small_ints['_PY_NSMALLPOSINTS'] - 1};"
         )
         lines.append("")
-    if TARGET_MINOR == "3.14":
-        lines.append('#[cfg(any(not(target_os = "linux"), test))]')
+    lines.append("#[cfg(test)]")
     lines.append("pub(crate) static PREINTERNED_STRINGS: &[&str] = &[")
     lines.extend(f"    {rust_string_literal(value)}," for value in preinterned_strings)
     lines.extend(["];", ""])
@@ -1209,21 +1211,14 @@ def render(sources: dict[str, str]) -> str:
                 "];",
                 "",
                 "// Use the canonical isolated Linux profile regardless of the Rust host architecture.",
-                '#[cfg(target_os = "linux")]',
+                '#[cfg(all(test, target_os = "linux"))]',
                 "#[rustfmt::skip]",
                 "pub(super) static LINUX_PREINTERNED_STRINGS: &[&str] = &[",
             ]
         )
         lines.extend(render_compact_rust_strings(linux_preinterned_strings))
         lines.extend(["];", "", '#[cfg(target_os = "linux")]'])
-        lines.extend(
-            render_preinterned_lookup(
-                linux_preinterned_strings,
-                (),
-                (),
-                "LINUX_PREINTERNED_STRINGS",
-            )
-        )
+        lines.extend(render_preinterned_lookup(linux_preinterned_strings, ()))
         lines.extend(["", '#[cfg(not(target_os = "linux"))]'])
         lines.extend(
             render_preinterned_lookup(

@@ -197,6 +197,7 @@ pub(crate) const fn is_conditional_jump(opcode: Opcode) -> bool {
     )
 }
 
+#[cfg(test)]
 pub(crate) static PREINTERNED_STRINGS: &[&str] = &[
     "",
     "%%",
@@ -3907,124 +3908,324 @@ fn is_preinterned_static_string(value: &str) -> bool {
         [first] => u16::from(*first) << 8,
         [first, second, ..] => u16::from_be_bytes([*first, *second]),
     };
-    let (start, end) = match prefix {
-        0x2525 => (1, 2),
-        0x2e3c => (2, 3),
-        0x2e64 => (3, 4),
-        0x2e67 => (4, 5),
-        0x2e6b => (5, 6),
-        0x2e74 => (6, 7),
-        0x3c64 => (7, 8),
-        0x3c67 => (8, 9),
-        0x3c6c => (9, 11),
-        0x3c6d => (11, 12),
-        0x3c73 => (12, 15),
-        0x3c75 => (15, 16),
-        0x4341 => (16, 17),
-        0x4649 => (17, 18),
-        0x4661 => (18, 19),
-        0x4a53 => (19, 20),
-        0x5045 => (20, 21),
-        0x5079 => (21, 22),
-        0x5465 => (22, 23),
-        0x5472 => (23, 24),
-        0x5761 => (24, 25),
-        0x5f57 => (25, 26),
+    let candidates: &[&str] = match prefix {
+        0x2525 => &["%%"],
+        0x2e3c => &[".<locals>"],
+        0x2e64 => &[".defaults"],
+        0x2e67 => &[".generic_base"],
+        0x2e6b => &[".kwdefaults"],
+        0x2e74 => &[".type_params"],
+        0x3c64 => &["<dictcomp>"],
+        0x3c67 => &["<genexpr>"],
+        0x3c6c => &["<lambda>", "<listcomp>"],
+        0x3c6d => &["<module>"],
+        0x3c73 => &["<setcomp>", "<shim>", "<string>"],
+        0x3c75 => &["<unknown>"],
+        0x4341 => &["CANCELLED"],
+        0x4649 => &["FINISHED"],
+        0x4661 => &["False"],
+        0x4a53 => &["JSONDecodeError"],
+        0x5045 => &["PENDING"],
+        0x5079 => &["Py_Repr"],
+        0x5465 => &["TextIOWrapper"],
+        0x5472 => &["True"],
+        0x5761 => &["WarningMessage"],
+        0x5f57 => &["_WindowsConsoleIO"],
         0x5f5f => {
             if cfg!(not(target_os = "linux")) && value == "__match_args__" {
                 return true;
             }
-            (26, 185)
+            &[
+                "__IOBase_closed",
+                "__abc_tpflags__",
+                "__abs__",
+                "__abstractmethods__",
+                "__add__",
+                "__aenter__",
+                "__aexit__",
+                "__aiter__",
+                "__all__",
+                "__and__",
+                "__anext__",
+                "__annotations__",
+                "__args__",
+                "__asyncio_running_event_loop__",
+                "__await__",
+                "__bases__",
+                "__bool__",
+                "__buffer__",
+                "__build_class__",
+                "__builtins__",
+                "__bytes__",
+                "__call__",
+                "__cantrace__",
+                "__class__",
+                "__class_getitem__",
+                "__classcell__",
+                "__classdict__",
+                "__classdictcell__",
+                "__complex__",
+                "__contains__",
+                "__copy__",
+                "__ctypes_from_outparam__",
+                "__del__",
+                "__delattr__",
+                "__delete__",
+                "__delitem__",
+                "__dict__",
+                "__dictoffset__",
+                "__dir__",
+                "__divmod__",
+                "__doc__",
+                "__enter__",
+                "__eq__",
+                "__exit__",
+                "__file__",
+                "__float__",
+                "__floordiv__",
+                "__format__",
+                "__fspath__",
+                "__ge__",
+                "__get__",
+                "__getattr__",
+                "__getattribute__",
+                "__getinitargs__",
+                "__getitem__",
+                "__getnewargs__",
+                "__getnewargs_ex__",
+                "__getstate__",
+                "__gt__",
+                "__hash__",
+                "__iadd__",
+                "__iand__",
+                "__ifloordiv__",
+                "__ilshift__",
+                "__imatmul__",
+                "__imod__",
+                "__import__",
+                "__imul__",
+                "__index__",
+                "__init__",
+                "__init_subclass__",
+                "__instancecheck__",
+                "__int__",
+                "__invert__",
+                "__ior__",
+                "__ipow__",
+                "__irshift__",
+                "__isabstractmethod__",
+                "__isub__",
+                "__iter__",
+                "__itruediv__",
+                "__ixor__",
+                "__le__",
+                "__len__",
+                "__length_hint__",
+                "__lltrace__",
+                "__loader__",
+                "__lshift__",
+                "__lt__",
+                "__main__",
+                "__matmul__",
+                "__missing__",
+                "__mod__",
+                "__module__",
+                "__mro_entries__",
+                "__mul__",
+                "__name__",
+                "__ne__",
+                "__neg__",
+                "__new__",
+                "__newobj__",
+                "__newobj_ex__",
+                "__next__",
+                "__notes__",
+                "__or__",
+                "__orig_class__",
+                "__origin__",
+                "__package__",
+                "__parameters__",
+                "__path__",
+                "__pos__",
+                "__pow__",
+                "__prepare__",
+                "__qualname__",
+                "__radd__",
+                "__rand__",
+                "__rdivmod__",
+                "__reduce__",
+                "__reduce_ex__",
+                "__release_buffer__",
+                "__repr__",
+                "__reversed__",
+                "__rfloordiv__",
+                "__rlshift__",
+                "__rmatmul__",
+                "__rmod__",
+                "__rmul__",
+                "__ror__",
+                "__round__",
+                "__rpow__",
+                "__rrshift__",
+                "__rshift__",
+                "__rsub__",
+                "__rtruediv__",
+                "__rxor__",
+                "__set__",
+                "__set_name__",
+                "__setattr__",
+                "__setitem__",
+                "__setstate__",
+                "__sizeof__",
+                "__slotnames__",
+                "__slots__",
+                "__spec__",
+                "__str__",
+                "__sub__",
+                "__subclasscheck__",
+                "__subclasshook__",
+                "__truediv__",
+                "__trunc__",
+                "__type_params__",
+                "__typing_is_unpacked_typevartuple__",
+                "__typing_prepare_subst__",
+                "__typing_subst__",
+                "__typing_unpacked_tuple_args__",
+                "__warningregistry__",
+                "__weaklistoffset__",
+                "__weakref__",
+                "__xor__",
+            ]
         }
         0x5f61 => {
             if cfg!(not(target_os = "linux")) && value == "_attributes" {
                 return true;
             }
-            (185, 193)
+            &[
+                "_abc_impl",
+                "_abstract_",
+                "_active",
+                "_annotation",
+                "_anonymous_",
+                "_argtypes_",
+                "_as_parameter_",
+                "_asyncio_future_blocking",
+            ]
         }
-        0x5f62 => (193, 195),
-        0x5f63 => (195, 196),
-        0x5f64 => (196, 197),
+        0x5f62 => &["_blksize", "_bootstrap"],
+        0x5f63 => &["_check_retval_"],
+        0x5f64 => &["_dealloc_warn"],
         0x5f66 => {
             if cfg!(not(target_os = "linux")) && value == "_fields" {
                 return true;
             }
-            (197, 203)
+            &[
+                "_feature_version",
+                "_fields_",
+                "_finalizing",
+                "_find_and_load",
+                "_fix_up_module",
+                "_flags_",
+            ]
         }
-        0x5f67 => (203, 204),
-        0x5f68 => (204, 205),
-        0x5f69 => (205, 208),
-        0x5f6c => (208, 212),
-        0x5f6e => (212, 213),
-        0x5f6f => (213, 214),
-        0x5f70 => (214, 215),
-        0x5f72 => (215, 216),
-        0x5f73 => (216, 221),
-        0x5f74 => (221, 222),
-        0x5f75 => (222, 223),
-        0x5f77 => (223, 224),
-        0x5f78 => (224, 225),
-        0x6162 => (225, 226),
-        0x6163 => (226, 227),
-        0x6164 => (227, 229),
-        0x6166 => (229, 231),
-        0x6167 => (231, 232),
-        0x616c => (232, 233),
+        0x5f67 => &["_get_sourcefile"],
+        0x5f68 => &["_handle_fromlist"],
+        0x5f69 => &["_initializing", "_io", "_is_text_encoding"],
+        0x5f6c => &["_length_", "_limbo", "_lock_unlock_module", "_loop"],
+        0x5f6e => &["_needs_com_addref_"],
+        0x5f6f => &["_only_immortal"],
+        0x5f70 => &["_pack_"],
+        0x5f72 => &["_restype_"],
+        0x5f73 => &[
+            "_showwarnmsg",
+            "_shutdown",
+            "_slotnames",
+            "_strptime_datetime",
+            "_swappedbytes_",
+        ],
+        0x5f74 => &["_type_"],
+        0x5f75 => &["_uninitialized_submodules"],
+        0x5f77 => &["_warn_unawaited_coroutine"],
+        0x5f78 => &["_xoptions"],
+        0x6162 => &["abs_tol"],
+        0x6163 => &["access"],
+        0x6164 => &["add", "add_done_callback"],
+        0x6166 => &["after_in_child", "after_in_parent"],
+        0x6167 => &["aggregate_class"],
+        0x616c => &["alias"],
         0x616e => return cfg!(not(target_os = "linux")) && value == "annotation",
-        0x6170 => (233, 234),
+        0x6170 => &["append"],
         0x6172 => {
             if cfg!(not(target_os = "linux")) && value == "argtypes" {
                 return true;
             }
-            (234, 239)
+            &["arg", "argdefs", "args", "arguments", "argv"]
         }
         0x6173 => {
             if cfg!(not(target_os = "linux")) && value == "asname" {
                 return true;
             }
-            (239, 241)
+            &["as_integer_ratio", "ast"]
         }
         0x6174 => {
             if cfg!(not(target_os = "linux")) && value == "attr" {
                 return true;
             }
-            (241, 242)
+            &["attribute"]
         }
-        0x6175 => (242, 244),
+        0x6175 => &["authorizer_callback", "autocommit"],
         0x6261 => {
             if cfg!(not(target_os = "linux")) && value == "bases" {
                 return true;
             }
-            (244, 246)
+            &["backtick", "base"]
         }
-        0x6265 => (246, 247),
-        0x6269 => (247, 249),
-        0x626c => (249, 250),
+        0x6265 => &["before"],
+        0x6269 => &["big", "binary_form"],
+        0x626c => &["block"],
         0x626f => {
             if cfg!(not(target_os = "linux")) && value == "body" {
                 return true;
             }
-            (250, 251)
+            &["bound"]
         }
-        0x6275 => (251, 258),
-        0x6279 => (258, 261),
-        0x635f => (261, 264),
+        0x6275 => &[
+            "buffer",
+            "buffer_callback",
+            "buffer_size",
+            "buffering",
+            "buffers",
+            "bufsize",
+            "builtins",
+        ],
+        0x6279 => &["byteorder", "bytes", "bytes_per_sep"],
+        0x635f => &["c_call", "c_exception", "c_return"],
         0x6361 => {
             if cfg!(not(target_os = "linux")) && value == "cases"
                 || cfg!(not(target_os = "linux")) && value == "cause"
             {
                 return true;
             }
-            (264, 273)
+            &[
+                "cached_statements",
+                "cadata",
+                "cafile",
+                "call",
+                "call_exception_handler",
+                "call_soon",
+                "cancel",
+                "capath",
+                "category",
+            ]
         }
-        0x6362 => (273, 274),
-        0x6365 => (274, 275),
-        0x6368 => (275, 276),
+        0x6362 => &["cb_type"],
+        0x6365 => &["certfile"],
+        0x6368 => &["check_same_thread"],
         0x636c => {
             if cfg!(not(target_os = "linux")) && value == "cls" {
                 return true;
             }
-            (276, 281)
+            &["clear", "close", "closed", "closefd", "closure"]
         }
         0x636f => {
             if cfg!(not(target_os = "linux")) && value == "col_offset"
@@ -4034,108 +4235,231 @@ fn is_preinterned_static_string(value: &str) -> bool {
             {
                 return true;
             }
-            (281, 312)
+            &[
+                "co_argcount",
+                "co_cellvars",
+                "co_code",
+                "co_consts",
+                "co_exceptiontable",
+                "co_filename",
+                "co_firstlineno",
+                "co_flags",
+                "co_freevars",
+                "co_kwonlyargcount",
+                "co_linetable",
+                "co_name",
+                "co_names",
+                "co_nlocals",
+                "co_posonlyargcount",
+                "co_qualname",
+                "co_stacksize",
+                "co_varnames",
+                "code",
+                "command",
+                "comment_factory",
+                "compile_mode",
+                "consts",
+                "context",
+                "contravariant",
+                "cookie",
+                "copy",
+                "copyreg",
+                "coro",
+                "count",
+                "covariant",
+            ]
         }
         0x6374 => return cfg!(not(target_os = "linux")) && value == "ctx",
-        0x6377 => (312, 313),
-        0x6461 => (313, 315),
+        0x6377 => &["cwd"],
+        0x6461 => &["data", "database"],
         0x6465 => {
             if cfg!(not(target_os = "linux")) && value == "decorator_list"
                 || cfg!(not(target_os = "linux")) && value == "defaults"
             {
                 return true;
             }
-            (315, 324)
+            &[
+                "decode",
+                "decoder",
+                "default",
+                "defaultaction",
+                "delete",
+                "depth",
+                "detect_types",
+                "deterministic",
+                "device",
+            ]
         }
-        0x6469 => (324, 334),
-        0x646b => (334, 335),
-        0x646f => (335, 337),
-        0x6473 => (337, 339),
-        0x6475 => (339, 340),
-        0x6561 => (340, 341),
-        0x6566 => (341, 342),
+        0x6469 => &[
+            "dict",
+            "dictcomp",
+            "difference_update",
+            "digest",
+            "digest_size",
+            "digestmod",
+            "dir_fd",
+            "discard",
+            "dispatch_table",
+            "displayhook",
+        ],
+        0x646b => &["dklen"],
+        0x646f => &["doc", "dont_inherit"],
+        0x6473 => &["dst", "dst_dir_fd"],
+        0x6475 => &["duration"],
+        0x6561 => &["eager_start"],
+        0x6566 => &["effective_ids"],
         0x656c => {
             if cfg!(not(target_os = "linux")) && value == "elt"
                 || cfg!(not(target_os = "linux")) && value == "elts"
             {
                 return true;
             }
-            (342, 343)
+            &["element_factory"]
         }
         0x656e => {
             if cfg!(not(target_os = "linux")) && value == "end_col_offset" {
                 return true;
             }
-            (343, 351)
+            &[
+                "encode",
+                "encoding",
+                "end",
+                "end_lineno",
+                "end_offset",
+                "endpos",
+                "entrypoint",
+                "env",
+            ]
         }
-        0x6572 => (351, 352),
-        0x6576 => (352, 354),
+        0x6572 => &["errors"],
+        0x6576 => &["event", "eventmask"],
         0x6578 => {
             if cfg!(not(target_os = "linux")) && value == "exc" {
                 return true;
             }
-            (354, 362)
+            &[
+                "exc_type",
+                "exc_value",
+                "excepthook",
+                "exception",
+                "existing_file_name",
+                "exp",
+                "extend",
+                "extra_tokens",
+            ]
         }
-        0x6661 => (362, 367),
-        0x6664 => (367, 370),
-        0x6667 => (370, 371),
+        0x6661 => &["facility", "factory", "false", "family", "fanout"],
+        0x6664 => &["fd", "fd2", "fdel"],
+        0x6667 => &["fget"],
         0x6669 => {
             if cfg!(not(target_os = "linux")) && value == "finalbody" {
                 return true;
             }
-            (371, 381)
+            &[
+                "file",
+                "file_actions",
+                "filename",
+                "fileno",
+                "filepath",
+                "fillvalue",
+                "filters",
+                "final",
+                "find_class",
+                "fix_imports",
+            ]
         }
-        0x666c => (381, 383),
+        0x666c => &["flags", "flush"],
         0x666f => {
             if cfg!(not(target_os = "linux")) && value == "format_spec" {
                 return true;
             }
-            (383, 385)
+            &["follow_symlinks", "format"]
         }
-        0x6672 => (385, 390),
-        0x6673 => (390, 391),
-        0x6675 => (391, 393),
+        0x6672 => &[
+            "frequency",
+            "from_param",
+            "fromlist",
+            "fromtimestamp",
+            "fromutc",
+        ],
+        0x6673 => &["fset"],
+        0x6675 => &["func", "future"],
         0x6765 => {
             if cfg!(not(target_os = "linux")) && value == "generators" {
                 return true;
             }
-            (393, 402)
+            &[
+                "generation",
+                "genexpr",
+                "get",
+                "get_debug",
+                "get_event_loop",
+                "get_loop",
+                "get_source",
+                "getattr",
+                "getstate",
+            ]
         }
-        0x6769 => (402, 403),
-        0x676c => (403, 404),
-        0x6772 => (404, 406),
+        0x6769 => &["gid"],
+        0x676c => &["globals"],
+        0x6772 => &["groupindex", "groups"],
         0x6775 => return cfg!(not(target_os = "linux")) && value == "guard",
         0x6861 => {
             if cfg!(not(target_os = "linux")) && value == "handlers" {
                 return true;
             }
-            (406, 408)
+            &["handle", "hash_name"]
         }
-        0x6865 => (408, 410),
-        0x6869 => (410, 411),
-        0x686f => (411, 412),
-        0x6964 => (412, 414),
+        0x6865 => &["header", "headers"],
+        0x6869 => &["hi"],
+        0x686f => &["hook"],
+        0x6964 => &["id", "ident"],
         0x6966 => return cfg!(not(target_os = "linux")) && value == "ifs",
-        0x6967 => (414, 415),
-        0x696d => (415, 417),
-        0x696e => (417, 434),
+        0x6967 => &["ignore"],
+        0x696d => &["imag", "importlib"],
+        0x696e => &[
+            "in_fd",
+            "incoming",
+            "indexgroup",
+            "inf",
+            "infer_variance",
+            "inheritable",
+            "initial",
+            "initial_bytes",
+            "initial_value",
+            "initval",
+            "inner_size",
+            "input",
+            "insert_comments",
+            "insert_pis",
+            "instructions",
+            "intern",
+            "intersection",
+        ],
         0x6973 => {
             if cfg!(not(target_os = "linux")) && value == "is_async" {
                 return true;
             }
-            (434, 440)
+            &[
+                "is_running",
+                "isatty",
+                "isinstance",
+                "isoformat",
+                "isolation_level",
+                "istext",
+            ]
         }
-        0x6974 => (440, 445),
-        0x6a6f => (445, 446),
-        0x6a73 => (446, 447),
-        0x6a75 => (447, 448),
+        0x6974 => &["item", "items", "iter", "iterable", "iterations"],
+        0x6a6f => &["join"],
+        0x6a73 => &["json.decoder"],
+        0x6a75 => &["jump"],
         0x6b65 => {
             if cfg!(not(target_os = "linux")) && value == "keywords" {
                 return true;
             }
-            (448, 452)
+            &["keepends", "key", "keyfile", "keys"]
         }
-        0x6b69 => (452, 453),
+        0x6b69 => &["kind"],
         0x6b77 => {
             if cfg!(not(target_os = "linux")) && value == "kw_defaults"
                 || cfg!(not(target_os = "linux")) && value == "kwarg"
@@ -4145,45 +4469,84 @@ fn is_preinterned_static_string(value: &str) -> bool {
             {
                 return true;
             }
-            (453, 456)
+            &["kw", "kw1", "kw2"]
         }
-        0x6c61 => (456, 464),
+        0x6c61 => &[
+            "lambda",
+            "last",
+            "last_exc",
+            "last_node",
+            "last_traceback",
+            "last_type",
+            "last_value",
+            "latin1",
+        ],
         0x6c65 => {
             if cfg!(not(target_os = "linux")) && value == "left" {
                 return true;
             }
-            (464, 468)
+            &["leaf_size", "len", "length", "level"]
         }
-        0x6c69 => (468, 475),
+        0x6c69 => &[
+            "limit",
+            "line",
+            "line_buffering",
+            "lineno",
+            "list index out of range",
+            "listcomp",
+            "little",
+        ],
         0x6c6f => {
             if cfg!(not(target_os = "linux")) && value == "lower" {
                 return true;
             }
-            (475, 480)
+            &["lo", "locale", "locals", "logoption", "loop"]
         }
-        0x6d61 => (480, 488),
-        0x6d65 => (488, 494),
-        0x6d6f => (494, 499),
-        0x6d72 => (499, 500),
-        0x6d73 => (500, 501),
-        0x6d79 => (501, 502),
-        0x6e5f => (502, 506),
+        0x6d61 => &[
+            "mapping",
+            "match",
+            "max_length",
+            "maxdigits",
+            "maxevents",
+            "maxmem",
+            "maxsplit",
+            "maxvalue",
+        ],
+        0x6d65 => &[
+            "memLevel",
+            "memlimit",
+            "message",
+            "metaclass",
+            "metadata",
+            "method",
+        ],
+        0x6d6f => &["mod", "mode", "module", "module_globals", "modules"],
+        0x6d72 => &["mro"],
+        0x6d73 => &["msg"],
+        0x6d79 => &["mycmp"],
+        0x6e5f => &["n_arg", "n_fields", "n_sequence_fields", "n_unnamed_fields"],
         0x6e61 => {
             if cfg!(not(target_os = "linux")) && value == "names" {
                 return true;
             }
-            (506, 511)
+            &[
+                "name",
+                "name_from",
+                "namespace_separator",
+                "namespaces",
+                "narg",
+            ]
         }
-        0x6e64 => (511, 512),
-        0x6e65 => (512, 517),
-        0x6e6c => (517, 518),
-        0x6e6f => (518, 520),
-        0x6e73 => (520, 522),
-        0x6e74 => (522, 523),
-        0x6e75 => (523, 525),
-        0x6f62 => (525, 527),
-        0x6f66 => (527, 530),
-        0x6f6e => (530, 533),
+        0x6e64 => &["ndigits"],
+        0x6e65 => &["new_file_name", "new_limit", "newline", "newlines", "next"],
+        0x6e6c => &["nlocals"],
+        0x6e6f => &["node_depth", "node_offset"],
+        0x6e73 => &["ns", "nstype"],
+        0x6e74 => &["nt"],
+        0x6e75 => &["null", "number"],
+        0x6f62 => &["obj", "object"],
+        0x6f66 => &["offset", "offset_dst", "offset_src"],
+        0x6f6e => &["on_type_read", "onceregistry", "only_keys"],
         0x6f70 => {
             if cfg!(not(target_os = "linux")) && value == "op"
                 || cfg!(not(target_os = "linux")) && value == "operand"
@@ -4192,129 +4555,206 @@ fn is_preinterned_static_string(value: &str) -> bool {
             {
                 return true;
             }
-            (533, 540)
+            &[
+                "oparg",
+                "opcode",
+                "open",
+                "opener",
+                "operation",
+                "optimize",
+                "options",
+            ]
         }
         0x6f72 => {
             if cfg!(not(target_os = "linux")) && value == "orelse" {
                 return true;
             }
-            (540, 542)
+            &["order", "origin"]
         }
-        0x6f75 => (542, 544),
-        0x6f76 => (544, 545),
-        0x6f77 => (545, 546),
+        0x6f75 => &["out_fd", "outgoing"],
+        0x6f76 => &["overlapped"],
+        0x6f77 => &["owner"],
         0x7061 => {
             if cfg!(not(target_os = "linux")) && value == "patterns" {
                 return true;
             }
-            (546, 551)
+            &["pages", "parent", "password", "path", "pattern"]
         }
-        0x7065 => (551, 555),
-        0x7069 => (555, 557),
+        0x7065 => &["peek", "persistent_id", "persistent_load", "person"],
+        0x7069 => &["pi_factory", "pid"],
         0x706f => {
             if cfg!(not(target_os = "linux")) && value == "posonlyargs" {
                 return true;
             }
-            (557, 562)
+            &["policy", "pos", "pos1", "pos2", "posix"]
         }
-        0x7072 => (562, 569),
-        0x7073 => (569, 571),
-        0x7175 => (571, 573),
-        0x7261 => (573, 574),
+        0x7072 => &[
+            "print_file_and_line",
+            "priority",
+            "progress",
+            "progress_handler",
+            "progress_routine",
+            "proto",
+            "protocol",
+        ],
+        0x7073 => &["ps1", "ps2"],
+        0x7175 => &["query", "quotetabs"],
+        0x7261 => &["raw"],
         0x7265 => {
             if cfg!(not(target_os = "linux")) && value == "rest"
                 || cfg!(not(target_os = "linux")) && value == "returns"
             {
                 return true;
             }
-            (574, 596)
+            &[
+                "read",
+                "read1",
+                "readable",
+                "readall",
+                "readinto",
+                "readinto1",
+                "readline",
+                "readonly",
+                "real",
+                "reducer_override",
+                "registry",
+                "rel_tol",
+                "release",
+                "reload",
+                "repl",
+                "replace",
+                "reserved",
+                "reset",
+                "resetids",
+                "return",
+                "reverse",
+                "reversed",
+            ]
         }
         0x7269 => return cfg!(not(target_os = "linux")) && value == "right",
-        0x7361 => (596, 597),
-        0x7363 => (597, 599),
-        0x7365 => (599, 615),
-        0x7368 => (615, 617),
+        0x7361 => &["salt"],
+        0x7363 => &["sched_priority", "scheduler"],
+        0x7365 => &[
+            "seek",
+            "seekable",
+            "selectors",
+            "self",
+            "send",
+            "sep",
+            "sequence",
+            "server_hostname",
+            "server_side",
+            "session",
+            "setcomp",
+            "setpgroup",
+            "setsid",
+            "setsigdef",
+            "setsigmask",
+            "setstate",
+        ],
+        0x7368 => &["shape", "show_cmd"],
         0x7369 => {
             if cfg!(not(target_os = "linux")) && value == "simple" {
                 return true;
             }
-            (617, 620)
+            &["signed", "size", "sizehint"]
         }
-        0x736b => (620, 621),
+        0x736b => &["skip_file_prefixes"],
         0x736c => {
             if cfg!(not(target_os = "linux")) && value == "slice" {
                 return true;
             }
-            (621, 622)
+            &["sleep"]
         }
-        0x736f => (622, 627),
-        0x7370 => (627, 628),
-        0x7372 => (628, 630),
-        0x7374 => (630, 645),
+        0x736f => &["sock", "sort", "sound", "source", "source_traceback"],
+        0x7370 => &["spam"],
+        0x7372 => &["src", "src_dir_fd"],
+        0x7374 => &[
+            "stacklevel",
+            "start",
+            "statement",
+            "status",
+            "stderr",
+            "stdin",
+            "stdout",
+            "step",
+            "steps",
+            "store_name",
+            "strategy",
+            "strftime",
+            "strict",
+            "strict_mode",
+            "string",
+        ],
         0x7375 => {
             if cfg!(not(target_os = "linux")) && value == "subject" {
                 return true;
             }
-            (645, 646)
+            &["sub_key"]
         }
-        0x7379 => (646, 647),
+        0x7379 => &["symmetric_difference_update"],
         0x7461 => {
             if cfg!(not(target_os = "linux")) && value == "targets" {
                 return true;
             }
-            (647, 652)
+            &["tabsize", "tag", "target", "target_is_directory", "task"]
         }
-        0x7462 => (652, 656),
+        0x7462 => &["tb_frame", "tb_lasti", "tb_lineno", "tb_next"],
         0x7465 => {
             if cfg!(not(target_os = "linux")) && value == "test" {
                 return true;
             }
-            (656, 660)
+            &["tell", "template", "term", "text"]
         }
-        0x7468 => (660, 662),
-        0x7469 => (662, 665),
-        0x746f => (665, 666),
-        0x7472 => (666, 672),
-        0x7477 => (672, 673),
-        0x7478 => (673, 674),
+        0x7468 => &["threading", "throw"],
+        0x7469 => &["timeout", "times", "timetuple"],
+        0x746f => &["top"],
+        0x7472 => &[
+            "trace_callback",
+            "traceback",
+            "trailers",
+            "translate",
+            "true",
+            "truncate",
+        ],
+        0x7477 => &["twice"],
+        0x7478 => &["txt"],
         0x7479 => {
             if cfg!(not(target_os = "linux")) && value == "type_comment"
                 || cfg!(not(target_os = "linux")) && value == "type_ignores"
             {
                 return true;
             }
-            (674, 676)
+            &["type", "type_params"]
         }
-        0x747a => (676, 678),
-        0x7569 => (678, 679),
-        0x756e => (679, 681),
+        0x747a => &["tz", "tzname"],
+        0x7569 => &["uid"],
+        0x756e => &["unlink", "unraisablehook"],
         0x7570 => return cfg!(not(target_os = "linux")) && value == "upper",
-        0x7572 => (681, 682),
-        0x7573 => (682, 683),
-        0x7574 => (683, 684),
+        0x7572 => &["uri"],
+        0x7573 => &["usedforsecurity"],
+        0x7574 => &["utf-8"],
         0x7661 => {
             if cfg!(not(target_os = "linux")) && value == "vararg" {
                 return true;
             }
-            (684, 686)
+            &["value", "values"]
         }
-        0x7665 => (686, 687),
-        0x766f => (687, 688),
-        0x7761 => (688, 690),
-        0x7762 => (690, 691),
-        0x7765 => (691, 693),
-        0x7768 => (693, 695),
-        0x7769 => (695, 696),
-        0x7772 => (696, 699),
-        0x7965 => (699, 700),
-        0x7a64 => (700, 701),
-        0x7b7b => (701, 702),
-        0x7d7d => (702, 703),
+        0x7665 => &["version"],
+        0x766f => &["volume"],
+        0x7761 => &["warnings", "warnoptions"],
+        0x7762 => &["wbits"],
+        0x7765 => &["week", "weekday"],
+        0x7768 => &["which", "who"],
+        0x7769 => &["withdata"],
+        0x7772 => &["writable", "write", "write_through"],
+        0x7965 => &["year"],
+        0x7a64 => &["zdict"],
+        0x7b7b => &["{{"],
+        0x7d7d => &["}}"],
         _ => return false,
     };
-    PREINTERNED_STRINGS[start..end]
-        .binary_search(&value)
-        .is_ok()
+    candidates.binary_search(&value).is_ok()
 }
 
 #[allow(dead_code)]

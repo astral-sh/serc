@@ -187,21 +187,17 @@ class RenderPreinternedLookupTest(unittest.TestCase):
             [f'    "{long}",', '    "quote\\"", "two words",'],
         )
 
-    def test_renders_combined_strings_against_the_named_table(self) -> None:
+    def test_renders_combined_strings_in_prefix_buckets(self) -> None:
         static = ["", "alpha", "beta"]
         bootstrap = ["alpine", "beta", "méthode"]
         rendered = generator.render_preinterned_lookup(
             sorted(set(static) | set(bootstrap)),
             ("albatross",),
-            table_name="LINUX_PREINTERNED_STRINGS",
         )
-        self.assertIn("            (1, 3)", rendered)
-        self.assertIn("        0x6265 => (3, 4),", rendered)
-        self.assertIn("        0x6dc3 => (4, 5),", rendered)
-        self.assertIn(
-            "    LINUX_PREINTERNED_STRINGS[start..end].binary_search(&value).is_ok()",
-            rendered,
-        )
+        self.assertIn('            &["alpha", "alpine"]', rendered)
+        self.assertIn('        0x6265 => &["beta"],', rendered)
+        self.assertIn('        0x6dc3 => &["méthode"],', rendered)
+        self.assertIn("    candidates.binary_search(&value).is_ok()", rendered)
 
     def test_gates_unix_startup_candidates(self) -> None:
         rendered = generator.render_preinterned_lookup(
@@ -227,7 +223,7 @@ class RenderPreinternedLookupTest(unittest.TestCase):
         )
         for lines in [original, native]:
             self.assertIn('        0x7265 => return value == "retained",', lines)
-            self.assertIn("        0x7374 => (0, 1),", lines)
+            self.assertIn('        0x7374 => &["static"],', lines)
 
     def test_renders_exact_prefix_ranges_and_startup_candidates(self) -> None:
         self.assertEqual(
@@ -242,20 +238,20 @@ class RenderPreinternedLookupTest(unittest.TestCase):
                 "        [first] => u16::from(*first) << 8,",
                 "        [first, second, ..] => u16::from_be_bytes([*first, *second]),",
                 "    };",
-                "    let (start, end) = match prefix {",
+                "    let candidates: &[&str] = match prefix {",
                 '        0x3530 => return value == "500",',
-                "        0x6100 => (1, 2),",
+                '        0x6100 => &["a"],',
                 "        0x616c => {",
                 '            if value == "albatross" {',
                 "                return true;",
                 "            }",
-                "            (2, 4)",
+                '            &["alpha", "alpine"]',
                 "        }",
                 '        0x6173 => return value == "ascii",',
-                "        0x6265 => (4, 5),",
+                '        0x6265 => &["beta"],',
                 "        _ => return false,",
                 "    };",
-                "    PREINTERNED_STRINGS[start..end].binary_search(&value).is_ok()",
+                "    candidates.binary_search(&value).is_ok()",
                 "}",
             ],
         )

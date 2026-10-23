@@ -171,7 +171,7 @@ def render_legacy_target(sources: dict[str, str], g) -> str:
         ("COMPILER_INTERNED_STRINGS", compiler_strings),
         ("STARTUP_INTERNED_STRINGS", startup_strings),
     ):
-        if name == "COMPILER_INTERNED_STRINGS":
+        if name in {"PREINTERNED_STRINGS", "COMPILER_INTERNED_STRINGS"}:
             lines.append("#[cfg(test)]")
         lines.append(f"pub(crate) static {name}: &[&str] = &[")
         lines.extend(f"    {g.rust_string_literal(value)}," for value in values)

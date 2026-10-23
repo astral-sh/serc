@@ -82,6 +82,21 @@ that timestamp and raw byte length to `to_timestamp_pyc`. This prevents a
 concurrent edit from receiving a cache header that incorrectly marks the new
 source as fresh.
 
+## Embedding footprint
+
+Call only the APIs your application needs so the linker can discard unused
+decoding and serialization code. Use `compile` when your application already
+has decoded text, and `CompiledModule::bytecode` when it needs only the module's
+raw instruction stream. The text API does not model source-codec effects on
+CPython's interned-string state, and the instruction stream alone is not a code
+object or an importable `.pyc` file. Use the byte-source and marshal or `.pyc`
+APIs when those semantics are required.
+
+The final application controls its Cargo release profile. Setting
+`strip = "symbols"` in that profile can reduce the executable's disk size
+without changing generated machine code, at the cost of symbol names used for
+debugging and profiling.
+
 ## CPython corpus comparison
 
 The [compatibility guide](../../docs/compatibility.md) documents the frozen

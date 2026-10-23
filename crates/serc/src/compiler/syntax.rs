@@ -778,6 +778,124 @@ struct ValidationError {
     is_legacy_async_generator_return: bool,
 }
 
+impl ValidationError {
+    #[cold]
+    #[inline(never)]
+    fn from_semantic(
+        error: &SemanticSyntaxError,
+        python_version: ast::PythonVersion,
+        scope: ScopeKind<'_>,
+        comprehension_yield_operand: bool,
+        checked_type_params: Option<&ast::TypeParams>,
+    ) -> Self {
+        use SemanticSyntaxErrorKind as Kind;
+        let message = match &error.kind {
+            Kind::FutureFeatureNotDefined(name) => {
+                if name == "braces" {
+                    "not a chance".to_owned()
+                } else {
+                    // CPython limits the UTF-8 representation to 100 bytes. Incomplete
+                    // characters at the limit are replaced before 3.14 and omitted afterward.
+                    let mut end = name.len().min(100);
+                    if python_version >= ast::PythonVersion::PY314 {
+                        while !name.is_char_boundary(end) {
+                            end -= 1;
+                        }
+                    }
+                    let feature = String::from_utf8_lossy(&name.as_bytes()[..end]);
+                    format!("future feature {feature} is not defined")
+                }
+            }
+            Kind::LateFutureImport => {
+                "from __future__ imports must occur at the beginning of the file".to_owned()
+            }
+            Kind::WriteToDebug(WriteToDebugKind::Store) => "cannot assign to __debug__".to_owned(),
+            Kind::WriteToDebug(WriteToDebugKind::Delete(_)) => "cannot delete __debug__".to_owned(),
+            Kind::BreakOutsideLoop => "'break' outside loop".to_owned(),
+            Kind::ContinueOutsideLoop => "'continue' not properly in loop".to_owned(),
+            Kind::ReturnOutsideFunction => "'return' outside function".to_owned(),
+            Kind::YieldOutsideFunction(kind) => {
+                if !kind.is_await()
+                    && let ScopeKind::Comprehension { kind, .. } = scope
+                {
+                    kind.yield_error().to_owned()
+                } else {
+                    format!("'{kind}' outside function")
+                }
+            }
+            Kind::YieldFromInAsyncFunction => "'yield from' inside async function".to_owned(),
+            Kind::AwaitOutsideAsyncFunction(AwaitOutsideAsyncFunctionKind::Await) => {
+                if comprehension_yield_operand
+                    || matches!(
+                        scope,
+                        ScopeKind::Function {
+                            is_async: false,
+                            ..
+                        }
+                    )
+                {
+                    "'await' outside async function".to_owned()
+                } else {
+                    "'await' outside function".to_owned()
+                }
+            }
+            Kind::DuplicateParameter(name) if comprehension_yield_operand => {
+                let kind = if python_version >= ast::PythonVersion::PY315 {
+                    "parameter"
+                } else {
+                    "argument"
+                };
+                format!("duplicate {kind} '{name}' in function definition")
+            }
+            Kind::AwaitOutsideAsyncFunction(AwaitOutsideAsyncFunctionKind::AsyncFor) => {
+                "'async for' outside async function".to_owned()
+            }
+            Kind::AwaitOutsideAsyncFunction(AwaitOutsideAsyncFunctionKind::AsyncWith) => {
+                "'async with' outside async function".to_owned()
+            }
+            Kind::DuplicateTypeParameter => checked_type_params
+                .and_then(|params| params.iter().find(|param| param.range() == error.range))
+                .map_or_else(
+                    || error.to_string(),
+                    |param| format!("duplicate type parameter '{}'", param.name().as_str()),
+                ),
+            Kind::MultipleCaseAssignment(name) => {
+                format!("multiple assignments to name '{name}' in pattern")
+            }
+            _ => error.to_string(),
+        };
+        let is_async_generator_return = matches!(error.kind, Kind::ReturnInGenerator);
+        let is_legacy_async_generator_return = is_async_generator_return
+            && matches!(
+                scope,
+                ScopeKind::Function {
+                    is_async: false,
+                    ..
+                }
+            );
+        Self {
+            error: if matches!(
+                error.kind,
+                Kind::DifferentMatchPatternBindings
+                    | Kind::MultipleCaseAssignment(_)
+                    | Kind::MultipleStarredNamesInSequencePattern
+                    | Kind::IrrefutableCasePattern(_)
+                    | Kind::DuplicateMatchKey(_)
+                    | Kind::DuplicateMatchClassAttribute(_)
+            ) {
+                CompileError::InvalidPattern {
+                    message,
+                    range: error.range,
+                }
+            } else {
+                CompileError::invalid_syntax(message, error.range)
+            },
+            is_async_generator_return,
+            is_legacy_async_generator_return,
+        }
+    }
+}
+
 impl From<CompileError> for ValidationError {
     fn from(error: CompileError) -> Self {
         Self {
@@ -2676,111 +2794,13 @@ impl<const PRUNE_STATEMENTS: bool, const FUTURE_ONLY: bool> SemanticSyntaxContex
             *reported = Some(diagnostic.into());
             return;
         }
-        let message = match &error.kind {
-            Kind::FutureFeatureNotDefined(name) => {
-                if name == "braces" {
-                    "not a chance".to_owned()
-                } else {
-                    // CPython limits the UTF-8 representation to 100 bytes. Incomplete
-                    // characters at the limit are replaced before 3.14 and omitted afterward.
-                    let mut end = name.len().min(100);
-                    if self.python_version >= ast::PythonVersion::PY314 {
-                        while !name.is_char_boundary(end) {
-                            end -= 1;
-                        }
-                    }
-                    let feature = String::from_utf8_lossy(&name.as_bytes()[..end]);
-                    format!("future feature {feature} is not defined")
-                }
-            }
-            Kind::LateFutureImport => {
-                "from __future__ imports must occur at the beginning of the file".to_owned()
-            }
-            Kind::WriteToDebug(WriteToDebugKind::Store) => "cannot assign to __debug__".to_owned(),
-            Kind::WriteToDebug(WriteToDebugKind::Delete(_)) => "cannot delete __debug__".to_owned(),
-            Kind::BreakOutsideLoop => "'break' outside loop".to_owned(),
-            Kind::ContinueOutsideLoop => "'continue' not properly in loop".to_owned(),
-            Kind::ReturnOutsideFunction => "'return' outside function".to_owned(),
-            Kind::YieldOutsideFunction(kind) => {
-                if !kind.is_await()
-                    && let ScopeKind::Comprehension { kind, .. } = self.scope().kind
-                {
-                    kind.yield_error().to_owned()
-                } else {
-                    format!("'{kind}' outside function")
-                }
-            }
-            Kind::YieldFromInAsyncFunction => "'yield from' inside async function".to_owned(),
-            Kind::AwaitOutsideAsyncFunction(AwaitOutsideAsyncFunctionKind::Await) => {
-                if self.comprehension_yield_operand
-                    || matches!(
-                        self.scope().kind,
-                        ScopeKind::Function {
-                            is_async: false,
-                            ..
-                        }
-                    )
-                {
-                    "'await' outside async function".to_owned()
-                } else {
-                    "'await' outside function".to_owned()
-                }
-            }
-            Kind::DuplicateParameter(name) if self.comprehension_yield_operand => {
-                let kind = if self.python_version >= ast::PythonVersion::PY315 {
-                    "parameter"
-                } else {
-                    "argument"
-                };
-                format!("duplicate {kind} '{name}' in function definition")
-            }
-            Kind::AwaitOutsideAsyncFunction(AwaitOutsideAsyncFunctionKind::AsyncFor) => {
-                "'async for' outside async function".to_owned()
-            }
-            Kind::AwaitOutsideAsyncFunction(AwaitOutsideAsyncFunctionKind::AsyncWith) => {
-                "'async with' outside async function".to_owned()
-            }
-            Kind::DuplicateTypeParameter => self
-                .checked_type_params
-                .and_then(|params| params.iter().find(|param| param.range() == error.range))
-                .map_or_else(
-                    || error.to_string(),
-                    |param| format!("duplicate type parameter '{}'", param.name().as_str()),
-                ),
-            Kind::MultipleCaseAssignment(name) => {
-                format!("multiple assignments to name '{name}' in pattern")
-            }
-            _ => error.to_string(),
-        };
-        let is_async_generator_return = matches!(error.kind, Kind::ReturnInGenerator);
-        let is_legacy_async_generator_return = is_async_generator_return
-            && matches!(
-                self.scope().kind,
-                ScopeKind::Function {
-                    is_async: false,
-                    ..
-                }
-            );
-        *reported = Some(ValidationError {
-            error: if matches!(
-                error.kind,
-                Kind::DifferentMatchPatternBindings
-                    | Kind::MultipleCaseAssignment(_)
-                    | Kind::MultipleStarredNamesInSequencePattern
-                    | Kind::IrrefutableCasePattern(_)
-                    | Kind::DuplicateMatchKey(_)
-                    | Kind::DuplicateMatchClassAttribute(_)
-            ) {
-                CompileError::InvalidPattern {
-                    message,
-                    range: error.range,
-                }
-            } else {
-                CompileError::invalid_syntax(message, error.range)
-            },
-            is_async_generator_return,
-            is_legacy_async_generator_return,
-        });
+        *reported = Some(ValidationError::from_semantic(
+            &error,
+            self.python_version,
+            self.scope().kind,
+            self.comprehension_yield_operand,
+            self.checked_type_params,
+        ));
     }
 }
 

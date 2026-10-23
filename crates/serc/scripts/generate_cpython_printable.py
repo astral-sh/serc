@@ -113,6 +113,8 @@ def main():
         "",
         "use ruff_python_ast::PythonVersion;",
         "",
+        f"const VERSION_BITS: u32 = {len(TARGETS)};",
+        "",
         "pub(super) fn is_printable(character: char, version: PythonVersion) -> bool {",
         "    let mask = match version {",
         "        PythonVersion::PY312 => 1,",
@@ -121,14 +123,22 @@ def main():
         "        _ => 8,",
         "    };",
         "    let codepoint = u32::from(character);",
-        "    let index = RANGES.partition_point(|(start, _, _)| *start <= codepoint);",
-        "    index != 0 && codepoint <= RANGES[index - 1].1 && RANGES[index - 1].2 & mask != 0",
+        "    let index = RANGES.partition_point(|(start, _)| *start <= codepoint);",
+        "    if index == 0 {",
+        "        return false;",
+        "    }",
+        "    let end_and_mask = RANGES[index - 1].1;",
+        "    (codepoint << VERSION_BITS) <= end_and_mask && end_and_mask & mask != 0",
         "}",
         "",
+        "// Inclusive range ends store the per-version printability mask in their low bits.",
         "#[rustfmt::skip]",
-        "const RANGES: &[(u32, u32, u8)] = &[",
+        "const RANGES: &[(u32, u32)] = &[",
     ]
-    lines += [f"    (0x{start:x}, 0x{end:x}, {mask})," for start, end, mask in ranges]
+    lines += [
+        f"    (0x{start:x}, 0x{(end << len(TARGETS)) | mask:_x}),"
+        for start, end, mask in ranges
+    ]
     lines += ["];", ""]
     args.output.write_text("\n".join(lines), encoding="utf-8")
 
